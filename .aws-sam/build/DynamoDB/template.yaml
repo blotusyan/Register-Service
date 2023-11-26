@@ -1,0 +1,133 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates the openIELTS service's DynamoDB Task table.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Resource Management
+      Parameters:
+      - Name
+      - Owner
+      - Project
+    - Label:
+        default: DynamoDB
+Parameters:
+  Name:
+    Type: String
+    Description: A String that can be used to Identify Resources created by this Template.
+      Resources may use this Parameter when creating the Name Tag. The Name Tag is
+      commonly used by the AWS Console to provide a friendlier name to Resources.
+      This may be used to form part of a Name Tag.
+    Default: WeiHengPractice
+  Owner:
+    Type: String
+    Description: The email address for the Team that owns the Resources created by
+      this Template.
+    AllowedPattern: ^(.*@gmail\.(io|com|tv),?)+$
+    ConstraintDescription: Must be an mcmaster.ca email address
+    Default: weihengyans@gmail.com
+  Project:
+    Type: String
+    Description: The name of the Project that the Resources created by this Template
+      belong to. A Team may own many Projects.
+    Default: OpenIELTS
+Resources:
+  OpenIELTSTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: pk
+        AttributeType: S
+      - AttributeName: sk-1
+        AttributeType: S
+      KeySchema:
+      - AttributeName: pk
+        KeyType: HASH
+      - AttributeName: sk-1
+        KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+      - Key: Name
+        Value:
+          Ref: Name
+      - Key: Owner
+        Value:
+          Ref: Owner
+      - Key: Project
+        Value:
+          Ref: Project
+      - Key: Group
+        Value: Weiheng
+  OpenIELTSDynamoDBRead:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Read Only Access to a openIELTS DynamoDB Table
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - dynamodb:BatchGetItem
+          - dynamodb:GetItem
+          - dynamodb:Query
+          - dynamodb:Scan
+          - dynamodb:DescribeTable
+          Resource:
+          - Fn::GetAtt:
+            - OpenIELTSTable
+            - Arn
+          - Fn::Sub: ${OpenIELTSTable.Arn}/index/*
+  OpenIELTSDynamoDBWrite:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Write Access to a OpenIELTS DynamoDB Table
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - dynamodb:BatchWriteItem
+          - dynamodb:DeleteItem
+          - dynamodb:PutItem
+          - dynamodb:UpdateItem
+          - dynamodb:DescribeTable
+          Resource:
+          - Fn::GetAtt:
+            - OpenIELTSTable
+            - Arn
+Outputs:
+  OpenIELTSTableName:
+    Description: The name of the DynamoDB OpenIELTS Table
+    Value:
+      Ref: OpenIELTSTable
+  OpenIELTSTableARN:
+    Description: The ARN of the DynamoDB OpenIELTS Table
+    Value:
+      Fn::GetAtt:
+      - OpenIELTSTable
+      - Arn
+  OpenIELTSTableStreamARN:
+    Description: The ARN of the DynamoDB Stream
+    Value:
+      Fn::GetAtt:
+      - OpenIELTSTable
+      - StreamArn
+  DatabaseReadPolicyArn:
+    Description: The ARN of the DynamoDB Read Policy
+    Value:
+      Ref: OpenIELTSDynamoDBRead
+  DatabaseWritePolicyArn:
+    Description: The ARN of the DynamoDB Write Policy
+    Value:
+      Ref: OpenIELTSDynamoDBWrite

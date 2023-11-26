@@ -1,0 +1,203 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  EventBus:
+    Type: String
+    Default: bus
+  FileStoreProject:
+    Type: String
+    Description: The name of the File Store Project that the event rule resource created
+      by this Template belong to. A Team may own many Projects.
+    Default: file-store-manager
+  Name:
+    Type: String
+    Description: A String that can be used to Identify Resources created by this Template.
+      Resources may use this Parameter when creating the Name Tag. The Name Tag is
+      commonly used by the AWS Console to provide a friendlier name to Resources.
+      This may be used to form part of a Name Tag.
+    Default: WeiHengPractice
+  Owner:
+    Type: String
+    Description: The email address for the Team that owns the Resources created by
+      this Template.
+    AllowedPattern: ^(.*@gmail\.(io|com|tv),?)+$
+    ConstraintDescription: Must be an @mcmaster.ca email address
+    Default: weihengyans@gmail.com
+  Project:
+    Type: String
+    Description: The name of the Project that the Resources created by this Template
+      belong to. A Team may own many Projects.
+    Default: OpenIELTS
+Resources:
+  ExternalServicesAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Required actions for clients
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - ssm:GetParameter
+          - lambda:InvokeFunction
+          Resource:
+          - Fn::Sub: arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*
+          - arn:aws:lambda:*:*:function:*
+  STSAssumeRole:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Allows STS Assume Role
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - sts:AssumeRole
+          Resource:
+          - '*'
+  RegisterInput:
+    Type: AWS::Serverless::Function
+    Properties:
+      Policies:
+      - Fn::GetAtt:
+        - DynamoDB
+        - Outputs.DatabaseWritePolicyArn
+      - Fn::GetAtt:
+        - DynamoDB
+        - Outputs.DatabaseReadPolicyArn
+      CodeUri: RegisterInput
+      Handler: apigateway_handler.register_input_handler
+      Runtime: python3.9
+      Architectures:
+      - x86_64
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /client
+            Method: post
+    Metadata:
+      SamResourceId: RegisterInput
+  RetrieveByUserId:
+    Type: AWS::Serverless::Function
+    Properties:
+      Policies:
+      - Fn::GetAtt:
+        - DynamoDB
+        - Outputs.DatabaseReadPolicyArn
+      CodeUri: RetrieveByUserId
+      Handler: apigateway_handler.retrieve_by_user_id_handler
+      Runtime: python3.9
+      Architectures:
+      - x86_64
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /user
+            Method: get
+    Metadata:
+      SamResourceId: RetrieveByUserId
+  RetrieveBySessionId:
+    Type: AWS::Serverless::Function
+    Properties:
+      Policies:
+      - Fn::GetAtt:
+        - DynamoDB
+        - Outputs.DatabaseReadPolicyArn
+      CodeUri: RetrieveBySessionId
+      Handler: apigateway_handler.retrieve_by_session_id_handler
+      Runtime: python3.9
+      Architectures:
+      - x86_64
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /session
+            Method: get
+    Metadata:
+      SamResourceId: RetrieveBySessionId
+  DynamoDB:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: DynamoDB/template.yaml
+      TimeoutInMinutes: 10
+      Parameters:
+        Name:
+          Fn::Sub: ${Name}
+        Owner:
+          Ref: Owner
+        Project:
+          Ref: Project
+    Metadata:
+      SamResourceId: DynamoDB
+  ApplicationResourceGroup:
+    Type: AWS::ResourceGroups::Group
+    Properties:
+      Name:
+        Fn::Join:
+        - ''
+        - - ApplicationInsights-SAM-
+          - Ref: AWS::StackName
+      ResourceQuery:
+        Type: CLOUDFORMATION_STACK_1_0
+  ApplicationInsightsMonitoring:
+    Type: AWS::ApplicationInsights::Application
+    Properties:
+      ResourceGroupName:
+        Fn::Join:
+        - ''
+        - - ApplicationInsights-SAM-
+          - Ref: AWS::StackName
+      AutoConfigurationEnabled: 'true'
+    DependsOn: ApplicationResourceGroup
+Outputs:
+  PostApi:
+    Description: API Gateway endpoint URL for Prod stage for Hello World function
+    Value:
+      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/client
+  GetUserIdApi:
+    Description: API Gateway endpoint URL for Prod stage for Hello World function
+    Value:
+      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/user
+  GetSessionIdApi:
+    Description: API Gateway endpoint URL for Prod stage for Hello World function
+    Value:
+      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/session
+  RegisterInput:
+    Description: Hello World Lambda Function ARN
+    Value:
+      Fn::GetAtt:
+      - RegisterInput
+      - Arn
+  RetrieveByUserId:
+    Description: Hello World Lambda Function ARN
+    Value:
+      Fn::GetAtt:
+      - RetrieveByUserId
+      - Arn
+  RetrieveBySessionId:
+    Description: Hello World Lambda Function ARN
+    Value:
+      Fn::GetAtt:
+      - RetrieveBySessionId
+      - Arn
+  RegisterInputIamRole:
+    Description: Implicit IAM Role created for Hello World function
+    Value:
+      Fn::GetAtt:
+      - RegisterInput
+      - Arn
+  RetrieveByIdIamRole:
+    Description: Implicit IAM Role created for Hello World function
+    Value:
+      Fn::GetAtt:
+      - RetrieveByUserId
+      - Arn
+  RetrieveByAccountIdIamRole:
+    Description: Implicit IAM Role created for Hello World function
+    Value:
+      Fn::GetAtt:
+      - RetrieveBySessionId
+      - Arn
